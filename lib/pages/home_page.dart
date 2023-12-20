@@ -1,38 +1,35 @@
 import 'dart:io';
 
 import 'package:csv/csv.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:quickviz/charts/bar%20graph/bar_graph.dart';
+import 'package:quickviz/services/csv_handler.dart';
+import 'package:quickviz/services/directory_handler.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({
-    super.key,
-  });
+    Key? key,
+  }) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
+  Directories directories = Directories();
+  CSVFILE _csvfile = CSVFILE();
   Future<List<Map<String, dynamic>>> readCsvFile() async {
     try {
-      final File file = File('path to file');
-      String content = await file.readAsString();
+      File csvFile = await directories.getCSVPath();
+
+      String content = await csvFile.readAsString();
+      print('CSV Content:\n$content');
       List<List<dynamic>> csvTable = CsvToListConverter().convert(content);
 
-      // Assuming the "Year" column is at index 0 and "Company" column is at index 1.
       List<Map<String, dynamic>> data = csvTable
           .map(
             (row) => {
-              'Year': row[0],
-              'Company': row[1],
-              'Category': row[2],
-              'Market Cap(in B USD)': row[3],
-              'Revenue': row[4],
-              'Gross Profit': row[5],
-              'Net Income': row[6],
-              'Current Ratio': row[13],
+              'gender': row[0],
             },
           )
           .toList();
@@ -63,19 +60,21 @@ class _HomePageState extends State<HomePage> {
               child: Text('No data available.'),
             );
           } else {
+            List<String> columns = snapshot.data!.first.keys.toList();
+
             return Center(
               child: SingleChildScrollView(
-                child: SizedBox(
-                  height: 700,
-                  child: BarGraph(
-                      years: snapshot.data!
-                          .skip(1)
-                          .map((years) => years['Year'])
-                          .toList(),
-                      revenue: snapshot.data!
-                          .skip(1)
-                          .map((item) => item['Current Ratio'])
-                          .toList()),
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: columns
+                      .map((col) => DataColumn(label: Text(col)))
+                      .toList(),
+                  rows: snapshot.data!.map((data) {
+                    return DataRow(
+                        cells: columns.map((col) {
+                      return DataCell(Text(data[col].toString()));
+                    }).toList());
+                  }).toList(),
                 ),
               ),
             );
@@ -85,6 +84,29 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
+// Center(
+//               child: SizedBox(
+//                 width: 400,
+//                 height: 400,
+//                 child: BarChart(
+//                   BarChartData(
+//                     minY: 0,
+//                     maxY: 03,
+//                     barGroups: List.generate(
+//                       snapshot.data!.length - 1,
+//                       (index) => BarChartGroupData(
+//                         x: 0,
+//                         barRods: [
+//                           BarChartRodData(
+//                               toY: snapshot.data![index + 1]
+//                                   ['Earning Per Share'])
+//                         ],
+//                       ),
+//                     ),
+//                   ),
+//                 ),
+//               ),
+//             );
 // Center(
 //                 child: DataTable(
 //                   columns: const [
