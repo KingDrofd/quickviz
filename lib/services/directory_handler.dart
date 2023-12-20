@@ -11,7 +11,7 @@ class Directories {
   Future<File> getCSVPath() async {
     String appDocumentsDir = await getDocumentsDirectoryPath();
     final File file = File(
-        '$appDocumentsDir/dataset/students performance/StudentsPerformance.csv');
+        '$appDocumentsDir/dataset/students performance/StudentsPerformance_csv.csv');
     return file;
   }
 }
