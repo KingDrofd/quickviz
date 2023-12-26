@@ -22,6 +22,7 @@ class _HomePageState extends State<HomePage> {
   Map<String, int> genderCounts = {};
   int _sortColumnIndex = 0;
   bool _ascending = true;
+
   Future<void> loadCsvFile() async {
     try {
       File csvFile = await directories.getCSVPath();
@@ -30,25 +31,20 @@ class _HomePageState extends State<HomePage> {
 
       List<List<dynamic>> csvTable = CsvToListConverter().convert(content);
 
+      List<String> header =
+          csvTable.isNotEmpty ? List.from(csvTable.first) : [];
+
       setState(() {
         _data = csvTable
             .skip(1)
             .map(
-              (row) => {
-                'gender': row[0],
-                'race/ethnicity': row[1],
-                'parental level of education': row[2],
-                'lunch': row[3],
-                'test preparation course': row[4],
-                'math score': row[5],
-                'reading score': row[6],
-                'writing score': row[7],
-              },
+              (row) => Map.fromIterables(
+                header,
+                row.map((item) => item.toString()),
+              ),
             )
             .toList();
       });
-      var maleCounts = _getOccurrences(_data, 'gender', 'male');
-      print("male counts $maleCounts");
     } catch (e) {
       print('Error reading CSV file: $e');
     }
@@ -85,97 +81,57 @@ class _HomePageState extends State<HomePage> {
     super.initState();
   }
 
+// value: _getOccurrences(_data, 'gender', 'male').toDouble(),
+//                   title:
+//                       '${double.parse(((_getOccurrences(_data, 'gender', 'male') / _data.length) * 100).toStringAsFixed(2))}%',
+
+  Widget buildDataTable() {
+    if (_data.isEmpty) {
+      // Return an empty DataTable or handle accordingly
+      return CircularProgressIndicator();
+    }
+
+    List<DataColumn> columns = [];
+    List<DataRow> rows = [];
+    Map<String, dynamic> firstRow = _data.first;
+    // Create DataColumn widgets dynamically based on header
+    for (String columnName in firstRow.keys) {
+      columns.add(
+        DataColumn(
+          label: Text(columnName),
+          onSort: (columnIndex, ascending) {
+            _sort<dynamic>(
+                (data) => data[columnName].toString(), columnIndex, ascending);
+          },
+        ),
+      );
+    }
+
+    // Create DataRow widgets dynamically based on data
+    for (Map<String, dynamic> data in _data) {
+      List<DataCell> cells = [];
+      for (String columnName in data.keys) {
+        cells.add(DataCell(Text(data[columnName].toString())));
+      }
+      rows.add(DataRow(cells: cells));
+    }
+
+    return DataTable(
+      sortColumnIndex: _sortColumnIndex,
+      sortAscending: _ascending,
+      columns: columns,
+      rows: rows,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Center(
-          child: DataTable(
-            sortColumnIndex: _sortColumnIndex,
-            sortAscending: _ascending,
-            columns: [
-              DataColumn(
-                label: Column(
-                  children: [
-                    Text('Gender'),
-                    Text("Males: ${_getOccurrences(_data, 'gender', 'male')}"),
-                  ],
-                ),
-                onSort: (columnIndex, ascending) {
-                  _sort<String>((data) => data['gender'].toString(),
-                      columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Race/Ethnicity'),
-                onSort: (columnIndex, ascending) {
-                  _sort<String>((data) => data['race/ethnicity'].toString(),
-                      columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Parental level of education'),
-                onSort: (columnIndex, ascending) {
-                  _sort<String>(
-                      (data) => data['parental level of education'].toString(),
-                      columnIndex,
-                      ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('lunch'),
-                onSort: (columnIndex, ascending) {
-                  _sort<String>((data) => data['lunch'].toString(), columnIndex,
-                      ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Test preparation course'),
-                onSort: (columnIndex, ascending) {
-                  _sort<String>(
-                      (data) => data['test preparation course'].toString(),
-                      columnIndex,
-                      ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Math Score'),
-                onSort: (columnIndex, ascending) {
-                  _sort<int>((data) => int.parse(data['math score'].toString()),
-                      columnIndex, ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Reading Score'),
-                onSort: (columnIndex, ascending) {
-                  _sort<int>(
-                      (data) => int.parse(data['reading score'].toString()),
-                      columnIndex,
-                      ascending);
-                },
-              ),
-              DataColumn(
-                label: Text('Writing Score'),
-                onSort: (columnIndex, ascending) {
-                  _sort<int>(
-                      (data) => int.parse(data['writing score'].toString()),
-                      columnIndex,
-                      ascending);
-                },
-              ),
-            ],
-            rows: _data.map((data) {
-              return DataRow(cells: [
-                DataCell(Text(data['gender'].toString())),
-                DataCell(Text(data['race/ethnicity'].toString())),
-                DataCell(Text(data['parental level of education'].toString())),
-                DataCell(Text(data['lunch'].toString())),
-                DataCell(Text(data['test preparation course'].toString())),
-                DataCell(Text(data['math score'].toString())),
-                DataCell(Text(data['reading score'].toString())),
-                DataCell(Text(data['writing score'].toString())),
-              ]);
-            }).toList(),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.only(top: 20),
+          child: SingleChildScrollView(
+            child: buildDataTable(),
           ),
         ),
       ),
@@ -229,3 +185,95 @@ class _HomePageState extends State<HomePage> {
 //                   }).toList(),
 //                 ),
 //               ),
+
+
+
+
+// DataTable(
+//             sortColumnIndex: _sortColumnIndex,
+//             sortAscending: _ascending,
+//             columns: [
+//               DataColumn(
+//                 label: Column(
+//                   children: [
+//                     Text('Gender'),
+//                     Text("Males: ${_getOccurrences(_data, 'gender', 'male')}"),
+//                   ],
+//                 ),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<String>((data) => data['gender'].toString(),
+//                       columnIndex, ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Race/Ethnicity'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<String>((data) => data['race/ethnicity'].toString(),
+//                       columnIndex, ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Parental level of education'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<String>(
+//                       (data) => data['parental level of education'].toString(),
+//                       columnIndex,
+//                       ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('lunch'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<String>((data) => data['lunch'].toString(), columnIndex,
+//                       ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Test preparation course'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<String>(
+//                       (data) => data['test preparation course'].toString(),
+//                       columnIndex,
+//                       ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Math Score'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<int>((data) => int.parse(data['math score'].toString()),
+//                       columnIndex, ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Reading Score'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<int>(
+//                       (data) => int.parse(data['reading score'].toString()),
+//                       columnIndex,
+//                       ascending);
+//                 },
+//               ),
+//               DataColumn(
+//                 label: Text('Writing Score'),
+//                 onSort: (columnIndex, ascending) {
+//                   _sort<int>(
+//                       (data) => int.parse(data['writing score'].toString()),
+//                       columnIndex,
+//                       ascending);
+//                 },
+//               ),
+//             ],
+//             rows: _data.map((data) {
+//               return DataRow(cells: [
+//                 DataCell(Text(data['gender'].toString())),
+//                 DataCell(Text(data['race/ethnicity'].toString())),
+//                 DataCell(Text(data['parental level of education'].toString())),
+//                 DataCell(Text(data['lunch'].toString())),
+//                 DataCell(Text(data['test preparation course'].toString())),
+//                 DataCell(Text(data['math score'].toString())),
+//                 DataCell(Text(data['reading score'].toString())),
+//                 DataCell(Text(data['writing score'].toString())),
+//               ]);
+//             }).toList(),
+//           ),
+//         ),
