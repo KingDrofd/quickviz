@@ -22,6 +22,9 @@ class _HomePageState extends State<HomePage> {
   Map<String, int> genderCounts = {};
   int _sortColumnIndex = 0;
   bool _ascending = true;
+  List<String> _allColumns = []; // List to store all available columns
+  List<String> _selectedColumns = []; // List to store selected columns
+  String? selectedColumnType;
 
   Future<void> loadCsvFile() async {
     try {
@@ -44,6 +47,9 @@ class _HomePageState extends State<HomePage> {
               ),
             )
             .toList();
+
+        _allColumns = header;
+        _selectedColumns = List.from(_allColumns);
       });
     } catch (e) {
       print('Error reading CSV file: $e');
@@ -58,20 +64,44 @@ class _HomePageState extends State<HomePage> {
         .length;
   }
 
-  _sort<T>(Comparable<dynamic> Function(Map<String, dynamic>) getField,
-      int columnIndex, bool ascending) {
-    _data.sort((a, b) {
-      final aValue = getField(a);
-      final bValue = getField(b);
-      if (ascending) {
-        return Comparable.compare(aValue, bValue);
-      } else {
-        return Comparable.compare(bValue, aValue);
-      }
-    });
+  _sort<T>(
+    Comparable<dynamic> Function(Map<String, dynamic>) getField,
+    int? columnIndex,
+    bool ascending,
+  ) {
     setState(() {
-      _sortColumnIndex = columnIndex;
-      _ascending = ascending;
+      try {
+        if (columnIndex != null &&
+            columnIndex >= 0 &&
+            columnIndex < _selectedColumns.length) {
+          _sortColumnIndex =
+              (_selectedColumns.length == 1 ? null : columnIndex)!;
+          _ascending = ascending;
+
+          _data.sort((a, b) {
+            final aValue = getField(a);
+            final bValue = getField(b);
+            if (ascending) {
+              return Comparable.compare(aValue, bValue);
+            } else {
+              return Comparable.compare(bValue, aValue);
+            }
+          });
+        } else {
+          print('Invalid columnIndex: $columnIndex');
+        }
+      } catch (e) {
+        print('Error during sorting: $e');
+        showDialog(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text("We encountered an error"),
+              content: Text("Please make sure you picked the correct type"),
+            );
+          },
+        );
+      }
     });
   }
 
@@ -87,30 +117,65 @@ class _HomePageState extends State<HomePage> {
 
   Widget buildDataTable() {
     if (_data.isEmpty) {
-      // Return an empty DataTable or handle accordingly
       return CircularProgressIndicator();
     }
 
     List<DataColumn> columns = [];
     List<DataRow> rows = [];
     Map<String, dynamic> firstRow = _data.first;
-    // Create DataColumn widgets dynamically based on header
-    for (String columnName in firstRow.keys) {
+
+    // Create DataColumn widgets dynamically based on selected columns
+    for (String columnName in _selectedColumns) {
       columns.add(
         DataColumn(
-          label: Text(columnName),
+          label: Text(columnName.toUpperCase()),
           onSort: (columnIndex, ascending) {
-            _sort<dynamic>(
-                (data) => data[columnName].toString(), columnIndex, ascending);
+            try {
+              if (selectedColumnType == 'int') {
+                _sort<int>(
+                  (data) =>
+                      int.parse(data[_selectedColumns[columnIndex]].toString()),
+                  columnIndex,
+                  ascending,
+                );
+              } else if (selectedColumnType == 'double') {
+                _sort<double>(
+                  (data) => double.parse(
+                      data[_selectedColumns[columnIndex]].toString()),
+                  columnIndex,
+                  ascending,
+                );
+              } else {
+                // Default to treating it as a string or handle other types as needed
+                _sort<String>(
+                  (data) => data[_selectedColumns[columnIndex]].toString(),
+                  columnIndex,
+                  ascending,
+                );
+              }
+            } catch (e) {
+              // Handle any errors that might occur during sorting
+              print('Error during sorting: $e');
+              showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: Text("We encountered an error"),
+                    content:
+                        Text("Please make sure you picked the correct type"),
+                  );
+                },
+              );
+            }
           },
         ),
       );
     }
 
-    // Create DataRow widgets dynamically based on data
+    // Create DataRow widgets dynamically based on data and selected columns
     for (Map<String, dynamic> data in _data) {
       List<DataCell> cells = [];
-      for (String columnName in data.keys) {
+      for (String columnName in _selectedColumns) {
         cells.add(DataCell(Text(data[columnName].toString())));
       }
       rows.add(DataRow(cells: cells));
@@ -124,20 +189,136 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Future<String?> showColumnTypeSelectionDialog(BuildContext context) async {
+    String selectedType = 'string'; // Default type, change as needed
+
+    try {
+      return showDialog<String>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Select Column Type'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Choose the type for sorting:'),
+                SizedBox(height: 10),
+                DropdownButton<String>(
+                  value: selectedType,
+                  onChanged: (String? newValue) {
+                    selectedType = newValue!;
+                    Navigator.of(context).pop(selectedType);
+                  },
+                  items: ['string', 'int', 'double']
+                      .map<DropdownMenuItem<String>>((String value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(selectedType);
+                },
+                child: Text('OK'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      print('Error in showColumnTypeSelectionDialog: $e');
+      return 'string';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        actions: [
+          DropdownButton(
+            items: _allColumns
+                .map(
+                  (column) => DropdownMenuItem(
+                    child: Text(column),
+                    value: [column],
+                  ),
+                )
+                .toList(),
+            onChanged: (List<String>? value) async {
+              selectedColumnType = await showColumnTypeSelectionDialog(context);
+              setState(() {
+                loadCsvFile();
+                _selectedColumns = value ?? [];
+              });
+            },
+          ),
+        ],
+      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.only(top: 20),
           child: SingleChildScrollView(
-            child: buildDataTable(),
+            child: Column(
+              children: [
+                // DropdownButton for selecting columns
+
+                // Display DataTable with selected columns
+
+                buildDataTable(),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  SizedBox buildPieChart() {
+    return SizedBox(
+      width: 400,
+      height: 400,
+      child: PieChart(
+        PieChartData(
+          sections: [
+            PieChartSectionData(
+              badgePositionPercentageOffset: 1.4,
+              badgeWidget: Text(
+                "Male:",
+                style: GoogleFonts.roboto(fontSize: 25),
+              ),
+              color: Colors.blue,
+              value: _getOccurrences(_data, 'gender', 'male').toDouble(),
+              title:
+                  '${double.parse(((_getOccurrences(_data, 'gender', 'male') / _data.length) * 100).toStringAsFixed(2))}%',
+              titleStyle: GoogleFonts.oswald(fontSize: 20),
+            ),
+            PieChartSectionData(
+              badgePositionPercentageOffset: 1.4,
+              badgeWidget: Text(
+                "Female:",
+                style: GoogleFonts.roboto(fontSize: 25),
+              ),
+              color: Colors.pink,
+              value: _getOccurrences(_data, 'gender', 'female').toDouble(),
+              title:
+                  '${double.parse(((_getOccurrences(_data, 'gender', 'female') / _data.length) * 100).toStringAsFixed(2))}%',
+              titleStyle: GoogleFonts.oswald(fontSize: 20),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+
+
+
 // Center(
 //               child: SizedBox(
 //                 width: 400,
