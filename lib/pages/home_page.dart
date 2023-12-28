@@ -25,36 +25,38 @@ class _HomePageState extends State<HomePage> {
   List<String> _allColumns = []; // List to store all available columns
   List<String> _selectedColumns = []; // List to store selected columns
   String? selectedColumnType;
+  List<Map<String, dynamic>> loadedData = [];
+  CSVFILE _csvfile = CSVFILE();
 
-  Future<void> loadCsvFile() async {
-    try {
-      File csvFile = await directories.getCSVPath();
+  // Future<void> loadCsvFile() async {
+  //   try {
+  //     File csvFile = await directories.getCSVPath();
 
-      String content = await csvFile.readAsString();
+  //     String content = await csvFile.readAsString();
 
-      List<List<dynamic>> csvTable = CsvToListConverter().convert(content);
+  //     List<List<dynamic>> csvTable = CsvToListConverter().convert(content);
 
-      List<String> header =
-          csvTable.isNotEmpty ? List.from(csvTable.first) : [];
+  //     List<String> header =
+  //         csvTable.isNotEmpty ? List.from(csvTable.first) : [];
 
-      setState(() {
-        _data = csvTable
-            .skip(1)
-            .map(
-              (row) => Map.fromIterables(
-                header,
-                row.map((item) => item.toString()),
-              ),
-            )
-            .toList();
+  //     setState(() {
+  //       _data = csvTable
+  //           .skip(1)
+  //           .map(
+  //             (row) => Map.fromIterables(
+  //               header,
+  //               row.map((item) => item.toString()),
+  //             ),
+  //           )
+  //           .toList();
 
-        _allColumns = header;
-        _selectedColumns = List.from(_allColumns);
-      });
-    } catch (e) {
-      print('Error reading CSV file: $e');
-    }
-  }
+  //       _allColumns = header;
+  //       _selectedColumns = List.from(_allColumns);
+  //     });
+  //   } catch (e) {
+  //     print('Error reading CSV file: $e');
+  //   }
+  // }
 
   int _getOccurrences(
       List<Map<String, dynamic>> data, String columnName, String item) {
@@ -66,30 +68,23 @@ class _HomePageState extends State<HomePage> {
 
   _sort<T>(
     Comparable<dynamic> Function(Map<String, dynamic>) getField,
-    int? columnIndex,
+    int columnIndex,
     bool ascending,
   ) {
     setState(() {
       try {
-        if (columnIndex != null &&
-            columnIndex >= 0 &&
-            columnIndex < _selectedColumns.length) {
-          _sortColumnIndex =
-              (_selectedColumns.length == 1 ? null : columnIndex)!;
-          _ascending = ascending;
+        _sortColumnIndex = columnIndex;
+        _ascending = ascending;
 
-          _data.sort((a, b) {
-            final aValue = getField(a);
-            final bValue = getField(b);
-            if (ascending) {
-              return Comparable.compare(aValue, bValue);
-            } else {
-              return Comparable.compare(bValue, aValue);
-            }
-          });
-        } else {
-          print('Invalid columnIndex: $columnIndex');
-        }
+        _data.sort((a, b) {
+          final aValue = getField(a);
+          final bValue = getField(b);
+          if (ascending) {
+            return Comparable.compare(aValue, bValue);
+          } else {
+            return Comparable.compare(bValue, aValue);
+          }
+        });
       } catch (e) {
         print('Error during sorting: $e');
         showDialog(
@@ -105,9 +100,18 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void loadData() async {
+    loadedData = await _csvfile.loadCsvFile();
+    setState(() {
+      _data = loadedData;
+      _allColumns = loadedData.isNotEmpty ? loadedData.first.keys.toList() : [];
+      _selectedColumns = List.from(_allColumns);
+    });
+  }
+
   @override
   void initState() {
-    loadCsvFile();
+    loadData();
     super.initState();
   }
 
@@ -240,49 +244,53 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        actions: [
-          DropdownButton(
-            items: _allColumns
-                .map(
-                  (column) => DropdownMenuItem(
-                    child: Text(column),
-                    value: [column],
-                  ),
-                )
-                .toList(),
-            onChanged: (List<String>? value) async {
-              selectedColumnType = await showColumnTypeSelectionDialog(context);
-              setState(() {
-                loadCsvFile();
-                _selectedColumns = value ?? [];
-              });
-            },
-          ),
-        ],
+        backgroundColor: Colors.purple[200],
+        actions: [],
       ),
       body: Center(
-        child: Padding(
-          padding: const EdgeInsets.only(top: 20),
           child: SingleChildScrollView(
-            child: Column(
-              children: [
-                // DropdownButton for selecting columns
-
-                // Display DataTable with selected columns
-
-                buildDataTable(),
-              ],
-            ),
-          ),
-        ),
-      ),
+              child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: 1000,
+                        height: 400,
+                        child: Wrap(
+                          children: _allColumns
+                              .map(
+                                (column) => CheckboxListTile(
+                                  title: Text(column),
+                                  value: _selectedColumns.contains(column),
+                                  onChanged: (bool? value) async {
+                                    if (value != null) {
+                                      selectedColumnType =
+                                          await showColumnTypeSelectionDialog(
+                                              context);
+                                      setState(() {
+                                        if (value) {
+                                          _selectedColumns.add(column);
+                                        } else {
+                                          _selectedColumns.remove(column);
+                                        }
+                                      });
+                                    }
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                      buildDataTable(),
+                    ],
+                  )))),
     );
   }
 
   SizedBox buildPieChart() {
     return SizedBox(
-      width: 400,
-      height: 400,
+      width: 500,
+      height: 500,
       child: PieChart(
         PieChartData(
           sections: [
@@ -316,8 +324,6 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
-
 
 // Center(
 //               child: SizedBox(
@@ -366,9 +372,6 @@ class _HomePageState extends State<HomePage> {
 //                   }).toList(),
 //                 ),
 //               ),
-
-
-
 
 // DataTable(
 //             sortColumnIndex: _sortColumnIndex,
